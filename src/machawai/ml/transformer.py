@@ -5,7 +5,7 @@
 import pandas as pd
 from machawai.stats import DataStats
 from machawai.ml.data import DataPoint
-from machawai.const import LOAD
+from machawai.const import LOAD, STRESS
 
 # ---------------
 # --- CLASSES ---
@@ -63,7 +63,7 @@ class MinMaxNormalizer(Transformer):
 
 class MaxLoadCut(Transformer):
     """
-    Takes only curve and target values before the maximum load. 
+    Takes only curve and target values before the maximum load/stress. 
     """
     def __init__(self, inplace: bool = False) -> None:
         super().__init__()
@@ -74,13 +74,19 @@ class MaxLoadCut(Transformer):
             data_point = data_point.copy()
         # 1) Cut curve
         if isinstance(data_point.curve, pd.DataFrame):
-            assert LOAD in data_point.curve.columns
-            idx_max = data_point.curve[LOAD].argmax()
+            if LOAD in data_point.curve.columns:
+                idx_max = data_point.curve[LOAD].argmax()
+            elif STRESS in data_point.curve.columns:
+                idx_max = data_point.curve[STRESS].argmax()
+            else:
+                raise ValueError("Missing {}/{} feature in input data.".format(LOAD, STRESS))
             data_point.curve = data_point.curve[:idx_max]
         else:
-            assert LOAD == data_point.curve.name
-            idx_max = data_point.curve.argmax()
-            data_point.curve = data_point.curve[:idx_max]
+            if data_point.curve.name in [LOAD, STRESS]:
+                idx_max = data_point.curve.argmax()
+                data_point.curve = data_point.curve[:idx_max]
+            else: 
+                raise ValueError("Missing {}/{} feature in input data.".format(LOAD, STRESS))
         # 2) Cut target
         data_point.target = data_point.target[:idx_max]
         return data_point
