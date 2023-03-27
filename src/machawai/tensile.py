@@ -632,14 +632,12 @@ def readTensileTest(file: str) -> TensileTest:
     uc = prop_sheet[UPPER_CUTOUT]
     linsec = LinearSection(bottom_cutout=bc, upper_cutout=uc)
 
-    filename = file[file.rindex("\\") + 1:]
-
     return TensileTest(testData=testData,
                        specimenProperties=sprop,
                        testSetup=setup,
                        cutAndOffset=cao,
                        linearSection=linsec,
-                       filename=filename)
+                       filename=file)
 
 def readTensileTestCollection(root: 'str | list[str]', exts: 'list[str]' = ['xlsx']) -> 'list[TensileTest]':
     # TODO: ottimizzare gestione estensioni
