@@ -311,7 +311,8 @@ class TensileTest():
                  specimenProperties: SpecimenProperties,
                  testSetup: TestSetup,
                  cutAndOffset: CutAndOffset = None,
-                 linearSection: LinearSection = None) -> None:
+                 linearSection: LinearSection = None,
+                 filename: str = None) -> None:
         """
         `TensileTest` class constructor.
 
@@ -332,12 +333,16 @@ class TensileTest():
 
         linearSection: `LinearSection`
             Options for linear section localization.
+
+        filename: str:
+            Name of source file.
         """
         self.testData = testData
         self.specimenProperties = specimenProperties
         self.testSetup = testSetup
         self.cutAndOffset = cutAndOffset
         self.linearSection = linearSection
+        self.filename = filename
 
         if self.linearSection == None:
             self.linearSection = LinearSection()
@@ -627,11 +632,14 @@ def readTensileTest(file: str) -> TensileTest:
     uc = prop_sheet[UPPER_CUTOUT]
     linsec = LinearSection(bottom_cutout=bc, upper_cutout=uc)
 
+    filename = file[file.rindex("\\") + 1:]
+
     return TensileTest(testData=testData,
                        specimenProperties=sprop,
                        testSetup=setup,
                        cutAndOffset=cao,
-                       linearSection=linsec)
+                       linearSection=linsec,
+                       filename=filename)
 
 def readTensileTestCollection(root: 'str | list[str]', exts: 'list[str]' = ['xlsx']) -> 'list[TensileTest]':
     # TODO: ottimizzare gestione estensioni
