@@ -3,90 +3,132 @@
 # --------------
 
 import pandas as pd
-from machawai.stats import DataStats
-from machawai.ml.data import DataPoint
-from machawai.const import LOAD, STRESS
+from machawai.ml.data import InformedTimeSeries, NumericFeature, SeriesFeature
 
 # ---------------
 # --- CLASSES ---
 # ---------------
 
 class Transformer():
-    """
-    Base Class for data transformer implementation. 
-    """
+
     def __init__(self) -> None:
         pass
 
-    def __call__(self, data_point: DataPoint) -> DataPoint:
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
         raise NotImplementedError()
+    
+class MinMaxFetaureNormalizer(Transformer):
 
-class MinMaxNormalizer(Transformer):
-    """
-    Apply Min-Max Normalization to a given DataPoint.
-    """
-    def __init__(self, stats: DataStats, inplace: bool = False, target_feature_map: dict = None) -> None:
+    def __init__(self, features:'list[str]', df: pd.DataFrame, inplace: bool = False) -> None:
         super().__init__()
-        self.stats = stats
-        self.inplace = inplace
-        self.target_feature_map = target_feature_map
-
-        self.min = self.stats.getMin()
-        self.max = self.stats.getMax()
-
-    def __call__(self, data_point: DataPoint) -> DataPoint:
-        if not self.inplace:
-            data_point = data_point.copy()
-        # 1) Normalize curve
-        if isinstance(data_point.curve, pd.DataFrame):
-            for feature in data_point.curve.columns:
-                data_point.curve[feature] = (data_point.curve[feature] - self.min[feature]) / (self.max[feature] - self.min[feature])
-        else:
-            feature = data_point.curve.name
-            data_point.curve = (data_point.curve - self.min[feature]) / (self.max[feature] - self.min[feature])
-        # 2) Normalize target
-        if isinstance(data_point.target, pd.DataFrame):
-            for feature in data_point.target.columns:
-                if self.target_feature_map != None:
-                    mapped_feature = self.target_feature_map[feature]
-                    data_point.target[feature] = (data_point.target[feature] - self.min[mapped_feature]) / (self.max[mapped_feature] - self.min[mapped_feature])
-                else:
-                    data_point.target[feature] = (data_point.target[feature] - self.min[feature]) / (self.max[feature] - self.min[feature])
-        else:
-            feature = data_point.target.name
-            if self.target_feature_map != None:
-                mapped_feature = self.target_feature_map[feature]
-                data_point.target = (data_point.target - self.min[mapped_feature]) / (self.max[mapped_feature] - self.min[mapped_feature])
-            else:
-                data_point.target = (data_point.target - self.min[feature]) / (self.max[feature] - self.min[feature])
-        return data_point
-
-class MaxLoadCut(Transformer):
-    """
-    Takes only curve and target values before the maximum load/stress. 
-    """
-    def __init__(self, inplace: bool = False) -> None:
-        super().__init__()
+        self.features = features
+        self.df = df
         self.inplace = inplace
 
-    def __call__(self, data_point: DataPoint) -> DataPoint:
+    def min(self, fname: str):
+        return self.df.loc["min", fname]
+    
+    def max(self, fname: str):
+        return self.df.loc["max", fname]
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
         if not self.inplace:
-            data_point = data_point.copy()
-        # 1) Cut curve
-        if isinstance(data_point.curve, pd.DataFrame):
-            if LOAD in data_point.curve.columns:
-                idx_max = data_point.curve[LOAD].argmax()
-            elif STRESS in data_point.curve.columns:
-                idx_max = data_point.curve[STRESS].argmax()
+            its = its.copy()
+        for fname in self.features:
+            feat = its.getFeature(fname)
+            if feat.isCategorical():
+                fval = feat.encode()
+                fval = (fval - self.min(fname)) / (self.max(fname) - self.min(fname))
+                nfeat = NumericFeature(name=fname, value=fval)
+                its.dropFeature(fname)
+                its.addFeature(nfeat)
             else:
-                raise ValueError("Missing {}/{} feature in input data.".format(LOAD, STRESS))
-            data_point.curve = data_point.curve[:idx_max]
+                feat.value = (feat.value - self.min(fname)) / (self.max(fname) - self.min(fname))
+        return its
+    
+class MinMaxSeriesNormalizer(Transformer):
+
+    def __init__(self, df: pd.DataFrame, inplace: bool = False, colnames: 'list[str]' = None) -> None:
+        super().__init__()
+        self.df = df
+        self.inplace = inplace
+        self.colnames = colnames
+
+    def min(self, colname: str):
+        return self.df.loc["min", colname]
+    
+    def max(self, colname: str):
+        return self.df.loc["max", colname]
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        if self.colnames == None:
+            cols = its.getColnames()
         else:
-            if data_point.curve.name in [LOAD, STRESS]:
-                idx_max = data_point.curve.argmax()
-                data_point.curve = data_point.curve[:idx_max]
-            else: 
-                raise ValueError("Missing {}/{} feature in input data.".format(LOAD, STRESS))
-        # 2) Cut target
-        data_point.target = data_point.target[:idx_max]
-        return data_point
+            cols = self.colnames
+        for col in cols:
+            its.series[col] = (its.series[col] - self.min(col)) / (self.max(col) - self.min(col))
+        return its
+    
+class CutSeriesToMaxIndex(Transformer):
+
+    def __init__(self, 
+                 colname: str, 
+                 include_features: 'list[str]' = [], 
+                 inplace: bool = False) -> None:
+        super().__init__()
+        self.colname = colname
+        self.include_features = include_features
+        self.inplace = inplace
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        idx_max = its.series[self.colname].argmax()
+        its.series = its.series[:idx_max]
+        for fname in self.include_features:
+            feat = its.getFeature(fname)
+            if not isinstance(feat, SeriesFeature):
+                raise ValueError("CutSeriesToMax: only SeriesFeature can be transformed.")
+            feat.value = feat.value[:idx_max]
+        return its
+
+class CutSeriesTail(Transformer):
+
+    def __init__(self, 
+                 tail_p: float = 0.0, 
+                 include_features: 'list[str]' = [], 
+                 use_feature: str = None, 
+                 inplace: bool = False) -> None:
+        super().__init__()
+        self.use_feature = use_feature
+        self.tail_p = tail_p
+        self.include_features = include_features
+        self.inplace = inplace
+
+    def getTailP(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if self.use_feature != None:
+            feat = its.getFeature(self.use_feature)
+            if isinstance(feat, NumericFeature):
+                return feat.value
+            raise TypeError("CutSeriesTail: only NumericFeature can be used to cut the series.")
+        return self.tail_p
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        tail_p = self.getTailP(its=its)
+
+        series_length = its.series.shape[0]
+        to_cut = int(series_length * tail_p)      
+        its.series = its.series.iloc[:series_length - to_cut]
+
+        for fname in self.include_features:
+            feat = its.getFeature(fname)
+            if not isinstance(feat, SeriesFeature):
+                raise ValueError("CutSeriesTail: only SeriesFeature can be transformed.")
+            series_length = feat.value.shape[0]
+            to_cut = int(series_length * tail_p)   
+            feat.value = feat.value.iloc[:series_length - to_cut]
+        return its

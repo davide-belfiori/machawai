@@ -2,10 +2,12 @@
 # --- IMPORT ---
 # --------------
 
+import os
 import numpy as np
 import pandas as pd
 from openpyxl import load_workbook
 import glob
+from machawai.labels import *
 from machawai.const import *
 
 # ------------------
@@ -28,7 +30,21 @@ class MissingExtsError(Exception):
 # --- CLASSES ---
 # ---------------
 
-class TestData():
+class LabelledObject():
+
+    def __init__(self) -> None:
+        pass
+
+    def labels(self) -> 'list[str]':
+        raise NotImplementedError()
+    
+    def get_by_label(self, label:str):
+        raise NotImplementedError()
+    
+    def get_by_labels(self, labels:'list[str]'):
+        raise NotImplementedError()
+
+class TestData(LabelledObject):
     """
     Holds the detected tensile test data.
     """
@@ -55,9 +71,9 @@ class TestData():
         time: Series | ndarray
             Time data.
         """
-        self.disp = self.handleSeriesInput(disp, acceptNone=False, name=DISP)
+        self.disp = self.handleSeriesInput(disp, acceptNone=False, name=DISPLACEMENT)
         self.load = self.handleSeriesInput(load, acceptNone=False, name=LOAD)
-        self.exts = self.handleSeriesInput(exts, acceptNone=True, name=EXTS)
+        self.exts = self.handleSeriesInput(exts, acceptNone=True, name=EXTENSOMETER)
         self.time = self.handleSeriesInput(time, acceptNone=True, name=TIME)
 
         if self.disp.shape[0] != self.load.shape[0]:
@@ -104,27 +120,36 @@ class TestData():
         if self.hasTime():
             if self.hasExts():
                 return pd.DataFrame({TIME: self.time,
-                                     DISP: self.disp,
+                                     DISPLACEMENT: self.disp,
                                      LOAD: self.load,
-                                     EXTS: self.exts})
+                                     EXTENSOMETER: self.exts})
             return pd.DataFrame({TIME: self.time,
-                                 DISP: self.disp,
+                                 DISPLACEMENT: self.disp,
                                  LOAD: self.load})
         else:
             if self.hasExts():
-                return pd.DataFrame({DISP: self.disp,
+                return pd.DataFrame({DISPLACEMENT: self.disp,
                                      LOAD: self.load,
-                                     EXTS: self.exts})
-        return pd.DataFrame({DISP: self.disp,
+                                     EXTENSOMETER: self.exts})
+        return pd.DataFrame({DISPLACEMENT: self.disp,
                              LOAD: self.load})
 
-class SpecimenProperties():
+    def labels(self) -> 'list[str]':
+        return [TIME, DISPLACEMENT, LOAD, EXTENSOMETER]
+    
+    def get_by_label(self, label:str):
+        return self.getData()[label]
+    
+    def get_by_labels(self, labels: 'list[str]'):
+        return self.getData()[labels]
+
+class SpecimenProperties(LabelledObject):
     """
     Holds the geometric properties of the tested specimen.
     """
     def __init__(self,
-                 width: 'float | list | np.ndarray',
-                 thickness: 'float | list | np.ndarray',
+                 width: 'float | list',
+                 thickness: 'float | list',
                  interaxis: float,
                  constant_section_length: float,
                  exts_length: float = None) -> None:
@@ -134,10 +159,10 @@ class SpecimenProperties():
         Arguments:
         ----------
 
-        width: float | list | np.ndarray
+        width: float | list
             Mesured specimen width.
 
-        thickness: float | list | np.ndarray
+        thickness: float | list
             Mesuerd speciemen thickness.
 
         interaxis: float
@@ -150,30 +175,20 @@ class SpecimenProperties():
             Constant section length.
         """
         if isinstance(width, float):
-            self.width = np.array([width], dtype=float)
-        elif isinstance(width, np.ndarray):
-            if width.any():
-                self.width = width
-            else:
-                raise ValueError("Empty width.")
+            self.width = [width]
         elif isinstance(width, list):
             if len(width) <= 0:
                 raise ValueError("Empty width.")
-            self.width = np.array(width)
+            self.width = width
         else:
             raise TypeError("Inavlid data type for width argument.")
         
         if isinstance(thickness, float):
-            self.thickness = np.array([thickness], dtype=float)
-        elif isinstance(thickness, np.ndarray):
-            if thickness.any():
-                self.thickness = thickness
-            else:
-                raise ValueError("Empty thickness.")
+            self.thickness = [thickness]
         elif isinstance(thickness, list):
             if len(thickness) <= 0:
                 raise ValueError("Empty thickness.")
-            self.thickness = np.array(thickness)
+            self.thickness = thickness
         else:
             raise TypeError("Inavlid data type for thickness argument.")       
 
@@ -181,15 +196,15 @@ class SpecimenProperties():
         self.exts_length = exts_length
         self.constant_section_length = constant_section_length
 
-        self.trasversal_section = self.mean_width() * self.mean_thickness()
+        self.trasversal_section = self.meanWidth() * self.meanThickness()
 
-    def mean_width(self):
-        return self.width.mean()
+    def meanWidth(self):
+        return np.mean(self.width)
     
-    def mean_thickness(self):
-        return self.thickness.mean()
+    def meanThickness(self):
+        return np.mean(self.thickness)
     
-    def as_dictionary(self):
+    def getProperties(self) -> dict:
         return {
             WIDTH: self.width,
             THICKNESS: self.thickness,
@@ -197,15 +212,28 @@ class SpecimenProperties():
             EXTS_LENGTH: self.exts_length,
             CS_LENGTH: self.constant_section_length
         }
+    
+    def labels(self) -> 'list[str]':
+        return [WIDTH, THICKNESS, INTERAXIS, EXTS_LENGTH, CS_LENGTH]
+    
+    def get_by_label(self, label: str):
+        return self.getProperties()[label]
+    
+    def get_by_labels(self, labels: 'list[str]'):
+        toReturn = {}
+        prop = self.getProperties()
+        for label in labels:
+            toReturn[label] = prop
+        return toReturn
 
-class TestSetup():
+class TestSetup(LabelledObject):
     """
     Additional Tensile Test information.
     """
     def __init__(self,
                  extensometer_acquired: bool = True,
                  ref_displacement_load: str = MOTOR,
-                 ref_param_strain: str = EXTENSOMETER,
+                 ref_param_strain: str = EXTENSO,
                  linearity_dev_method: str = RP02,
                  straingage1_acquired: bool = False,
                  straingage2_acquired: bool = False) -> None:
@@ -248,7 +276,30 @@ class TestSetup():
         self.ref_param_strain = ref_param_strain
         self.linearity_dev_method = linearity_dev_method
 
-class CutAndOffset():
+    def getSetup(self) -> dict:
+        return {
+            EXTS_ACQUIRED: self.extensometer_acquired,
+            REF_DISP_LOAD: self.ref_displacement_load,
+            REF_PARAM_STRAIN: self.ref_param_strain,
+            LINEARITY_DEV_METHOD: self.linearity_dev_method,
+            STRAINGAGE1_ACQUIRED: self.straingage1_acquired,
+            STRAINGAGE2_ACQUIRED: self.straingage2_acquired
+        }
+    
+    def labels(self) -> 'list[str]':
+        return [EXTS_ACQUIRED, REF_DISP_LOAD, REF_PARAM_STRAIN, LINEARITY_DEV_METHOD, STRAINGAGE1_ACQUIRED, STRAINGAGE2_ACQUIRED]
+    
+    def get_by_label(self, label: str):
+        return self.getSetup()[label]
+    
+    def get_by_labels(self, labels: 'list[str]'):
+        toReturn = {}
+        prop = self.getSetup()
+        for label in labels:
+            toReturn[label] = prop
+        return toReturn
+
+class CutAndOffset(LabelledObject):
 
     def __init__(self,
                  tail_p: float = 0.0,
@@ -274,8 +325,27 @@ class CutAndOffset():
         curve.iloc[:,col_idx] = curve.iloc[:,col_idx] - self.foot_offset
         curve = curve.loc[curve.iloc[:,col_idx] < 0]
         return curve
+    
+    def getCutAndOffset(self):
+        return {
+            TAIL_P: self.tail_p,
+            FOOT_OFFSET: self.foot_offset
+        }
+    
+    def labels(self) -> 'list[str]':
+        return [TAIL_P, FOOT_OFFSET]
+    
+    def get_by_label(self, label: str):
+        return self.getCutAndOffset()[label]
+    
+    def get_by_labels(self, labels: 'list[str]'):
+        toReturn = {}
+        prop = self.getCutAndOffset()
+        for label in labels:
+            toReturn[label] = prop
+        return toReturn
 
-class LinearSection():
+class LinearSection(LabelledObject):
 
     def __init__(self,
                  bottom_cutout: float = 0.0,
@@ -301,8 +371,27 @@ class LinearSection():
         curve = curve.loc[curve.iloc[:,col_idx] <= upper_cutout]
 
         return curve
+    
+    def getBounds(self):
+        return {
+            BOTTOM_CUTOUT: self.bottom_cutout,
+            UPPER_CUTOUT: self.upper_cutout
+        }
+    
+    def labels(self) -> 'list[str]':
+        return [BOTTOM_CUTOUT, UPPER_CUTOUT]
+    
+    def get_by_label(self, label: str):
+        return self.getBounds()[label]
+    
+    def get_by_labels(self, labels: 'list[str]'):
+        toReturn = {}
+        prop = self.getBounds()
+        for label in labels:
+            toReturn[label] = prop
+        return toReturn
 
-class TensileTest():
+class TensileTest(LabelledObject):
     """
     Describe a Tensile Test.
     """
@@ -349,47 +438,19 @@ class TensileTest():
 
         if self.testSetup.extensometer_acquired and not self.testData.hasExts():
             raise ValueError("Inconsistent setup and data: Extensometer is acquired but no value has been provided.")
-
-    def getTime(self):
-        """
-        Return the Time values.
-        """
-        if self.testData.hasTime():
-            return self.testData.time
-        raise MissingTimeError()
-    
-    def getDisplacement(self):
-        """
-        Return the Displacement values.
-        """
-        return self.testData.disp
-    
-    def getLoad(self):
-        """
-        Return the Load values.
-        """
-        return self.testData.load
-    
-    def getExtensometer(self):
-        """
-        Return the Extensometer values.
-        """
-        if self.testData.hasExts():
-            return self.testData.exts
-        raise MissingExtsError()
     
     def getDispStrain(self):
         """
         Compute the Strain values on Displacement.
         """
-        return self.getDisplacement() / self.specimenProperties.exts_length
+        return self.testData.disp / self.specimenProperties.exts_length
     
     def getExtsStrain(self):
         """
         Compute the Strain values on Extensometer.
         """
         if self.testData.hasExts():
-            strain = self.getExtensometer() / self.specimenProperties.exts_length
+            strain = self.testData.exts / self.specimenProperties.exts_length
             strain.name = EXTS_STRAIN
             return strain
         else:
@@ -399,13 +460,20 @@ class TensileTest():
         """
         Compute the Stress values.
         """
-        stress = self.getLoad() / self.specimenProperties.trasversal_section
+        stress = self.testData.exts / self.specimenProperties.trasversal_section
         stress.name = STRESS
         return stress
     
-    def getData(self):
+    def getElabData(self):
+        data = pd.DataFrame({DISP_STRAIN: self.getDispStrain(),
+                             STRESS: self.getStress()})
+        if self.testData.hasExts():
+            data[EXTS_STRAIN] = self.getExtsStrain()
+        return data
+
+    def getFullData(self):
         """
-        Return the Test Data as a single Dataframe.
+        Return the full Test Dataframe.
         """
         data = self.testData.getData()
         # Add disp/extx strain
@@ -415,75 +483,12 @@ class TensileTest():
         data[STRESS] = self.getStress()
 
         return data
-    
-    def getDataLabels(self):
-        """
-        Return test Data labels.
-        """
-        return self.getData().columns
-    
-    def selectData(self, labels: 'list[str]'):
-        """
-        Filter Test Data given a label list.
-        """
-        return self.getData()[labels]
-    
-    def getTimeAtIndex(self, idx: int):
-        """
-        Return the Time value at the given index.
-        """
-        if self.testData.hasTime():
-            return self.testData.time[idx]
-        raise MissingTimeError()
-    
-    def getDispAtIndex(self, idx: int):
-        """
-        Return the Displacement value at the given index.
-        """
-        return self.testData.disp[idx]
-
-    def getLoadAtIndex(self, idx: int):
-        """
-        Return the Load value at the given index.
-        """
-        return self.testData.load[idx]
-    
-    def getExtsAtIndex(self, idx: int):
-        """
-        Return the Extensometer value at the given index.
-        """
-        if self.testData.hasExts():
-            return self.testData.exts[idx]
-        raise MissingExtsError()
-
-    def getStrainAtIndex(self, idx: int, use_displacement: bool = False):
-        """
-        Return the Strain value at the given index.
-        """
-        if use_displacement:
-            return self.getDispStrain()[idx]
-        else:
-            return self.getExtsStrain()[idx]
-
-    def getMaxLoad(self):
-        """
-        Return the maximum Load value and its index.
-        """
-        max_load_idx = self.testData.load.argmax()
-        return self.testData.load[max_load_idx], max_load_idx
-    
-    def getMaxStress(self):
-        """
-        Return the maximum Stress value and its index.
-        """
-        max_load, max_load_idx = self.getMaxLoad()
-        return max_load / self.specimenProperties.trasversal_section, max_load_idx
 
     def getLoadDisplacementCurve(self, cut_and_offset: bool = True):
         """
         Return the Load-Displacement curve.
         """
-        curve = pd.DataFrame({DISP: self.testData.disp,
+        curve = pd.DataFrame({DISPLACEMENT: self.testData.disp,
                               LOAD: self.testData.load})
         if cut_and_offset and self.cutAndOffset != None:
             curve = self.cutAndOffset.apply(curve=curve, col_idx=0)
@@ -497,7 +502,7 @@ class TensileTest():
         """
         if not self.testData.hasExts():
             raise MissingExtsError()
-        curve = pd.DataFrame({EXTS: self.testData.exts,
+        curve = pd.DataFrame({EXTENSOMETER: self.testData.exts,
                               LOAD: self.testData.load})
         if cut_and_offset and self.cutAndOffset != None:
             curve = self.cutAndOffset.apply(curve=curve, col_idx=0)
@@ -525,35 +530,42 @@ class TensileTest():
         if cut_and_offset and self.cutAndOffset != None:
             curve = self.cutAndOffset.apply(curve=curve, col_idx=0)
         return curve
-        
-    def getProperties(self):
-        """ 
-        Return the Speciemn Properties as a dictionary 
-        """
-        return self.specimenProperties.as_dictionary()
-        
-    def selectProperties(self, labels: 'list[str]'):
-        """
-        Filter Specimen Properties given a label list.
-        """
-        select = {}
-        sporp = self.specimenProperties.as_dictionary()
-        for label in labels:
-            select[label] = sporp[label]
-        return select
-    
-    def getLinearSection(self, use_displacement: bool = False):
-        if use_displacement:
-            curve = self.getLoadDisplacementCurve()
-        else:
-            curve = self.getLoadExtsCurve() 
-        return self.linearSection.apply(curve=curve)
     
     def getDataStats(self, labels: 'list[str]' = None):
         if labels == None:
-            return self.getData().describe()
+            return self.getFullData().describe()
         else:
-            return self.selectData(labels=labels).describe()
+            return self.getFullData[labels].describe()
+
+    def labels(self) -> 'list[str]':
+        toReturn = [FILENAME, DISP_STRAIN, EXTS_STRAIN, STRESS]
+        toReturn.extend(self.testData.labels())
+        toReturn.extend(self.specimenProperties.labels())
+        toReturn.extend(self.testSetup.labels())
+        toReturn.extend(self.cutAndOffset.labels())
+        toReturn.extend(self.linearSection.labels())
+        return toReturn
+    
+    def get_by_label(self, label: str):
+        if label in self.testData.labels():
+            return self.testData.get_by_label(label)
+        if label in self.specimenProperties.labels():
+            return self.specimenProperties.get_by_label(label)
+        if label in self.testSetup.labels():
+            return self.testSetup.get_by_label(label)
+        if label in self.cutAndOffset.labels():
+            return self.cutAndOffset.get_by_label(label)
+        if label in self.linearSection.labels():
+            return self.linearSection.get_by_label(label)
+        if label == FILENAME:
+            return self.filename
+        return self.getElabData()[label]
+    
+    def get_by_labels(self, labels: 'list[str]'):
+        toReturn = {}
+        for label in labels:
+            toReturn[label] = self.get_by_label(label)
+        return toReturn
 
 # -----------------
 # --- FUNCTIONS ---
@@ -576,10 +588,10 @@ def readTensileTest(file: str) -> TensileTest:
     assert RAW in sheet_names and ELAB in sheet_names
     # 1) Read the Test data
     df = pd.read_excel(file, sheet_name=RAW, header=[0,1], dtype=float)
-    testData = TestData(disp = df[DISP].iloc[:,0],
-                        load = df[LOAD].iloc[:,0],
-                        exts = df[EXTS].iloc[:,0] if EXTS in df.columns else None,
-                        time = df[TIME].iloc[:,0] if TIME in df.columns else None)
+    testData = TestData(disp = df[DISP_COL].iloc[:,0],
+                        load = df[LOAD_COL].iloc[:,0],
+                        exts = df[EXTS_COL].iloc[:,0] if EXTS_COL in df.columns else None,
+                        time = df[TIME_COL].iloc[:,0] if TIME_COL in df.columns else None)
     
     # Read Specimen Properties and options
     prop_sheet = wb[ELAB]
@@ -623,21 +635,24 @@ def readTensileTest(file: str) -> TensileTest:
                       straingage2_acquired = s2_acquired)
     
     # 4) Cut and Offset
-    tp = prop_sheet[TAIL_P].value / 100
-    foot_offset = prop_sheet[FOOT_OFFSET].value / 100
+    tp = prop_sheet[TAIL_P_CELL].value / 100
+    foot_offset = prop_sheet[FOOT_OFFSET_CELL].value / 100
     cao = CutAndOffset(tail_p=tp, foot_offset=foot_offset)
 
     # 5) Linear Section
-    bc = prop_sheet[BOTTOM_CUTOUT]
-    uc = prop_sheet[UPPER_CUTOUT]
+    bc = prop_sheet[BOTTOM_CUTOUT_CELL].value
+    uc = prop_sheet[UPPER_CUTOUT_CELL].value
     linsec = LinearSection(bottom_cutout=bc, upper_cutout=uc)
+
+    filename = os.path.basename(file)
+    filename = os.path.splitext(filename)[0]
 
     return TensileTest(testData=testData,
                        specimenProperties=sprop,
                        testSetup=setup,
                        cutAndOffset=cao,
                        linearSection=linsec,
-                       filename=file)
+                       filename=filename)
 
 def readTensileTestCollection(root: 'str | list[str]', exts: 'list[str]' = ['xlsx']) -> 'list[TensileTest]':
     # TODO: ottimizzare gestione estensioni
