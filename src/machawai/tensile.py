@@ -460,7 +460,7 @@ class TensileTest(LabelledObject):
         """
         Compute the Stress values.
         """
-        stress = self.testData.exts / self.specimenProperties.trasversal_section
+        stress = self.testData.load / self.specimenProperties.trasversal_section
         stress.name = STRESS
         return stress
     
