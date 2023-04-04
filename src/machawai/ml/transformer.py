@@ -2,6 +2,7 @@
 # --- IMPORT ---
 # --------------
 
+import random
 import pandas as pd
 from machawai.ml.data import InformedTimeSeries, NumericFeature, SeriesFeature
 
@@ -131,4 +132,25 @@ class CutSeriesTail(Transformer):
             series_length = feat.value.shape[0]
             to_cut = int(series_length * tail_p)   
             feat.value = feat.value.iloc[:series_length - to_cut]
+        return its
+
+class CutSeries(Transformer):
+
+    def __init__(self, cut_size: int = None, min_size: int = 1, max_size: int = 100, inplace: bool = False) -> None:
+        super().__init__()
+        self.cut_size = cut_size
+        self.min_size = min_size
+        self.max_size = max_size
+        self.inplace = inplace
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        series_length = its.series.shape[0]
+        if self.cut_size == None:
+            cut_size = random.randint(self.min_size, self.max_size)
+        else:
+            cut_size = self.cut_size
+        start_point = random.randint(0, series_length - cut_size)
+        its.series = its.series.loc[start_point: start_point + cut_size - 1]
         return its

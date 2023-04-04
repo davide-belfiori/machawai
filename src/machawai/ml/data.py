@@ -447,6 +447,9 @@ class InformedTimeSeriesDataset():
     def size(self) -> int:
         return len(self.data)
 
+    def shuffle(self):
+        random.shuffle(self.data)
+
     def train_test_split(self, test_ratio: float = 0.1, shuffle: bool = False, random_seed: int = None):
         """
         Split the dataset into train and test subsets.
@@ -505,7 +508,7 @@ class InformedTimeSeriesDataset():
         return its
     
     def __len__(self):
-        return self.data.__len__()
+        return self.size()
 
 # -----------------
 # --- FUNCTIONS ---
