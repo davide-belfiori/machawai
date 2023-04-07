@@ -176,7 +176,7 @@ class CutSeriesWithPadding(Transformer):
             if self.pad_value == "repeat":
                 padding = its.series.iloc[0].values
                 padding = np.expand_dims(padding, 0)
-                padding = np.repeat(padding, start_point, axis = 0)
+                padding = np.repeat(padding, abs(start_point), axis = 0)
                 padding_index = np.arange(start_point, 0)
                 return pd.DataFrame(padding, columns=its.getColnames(), index=padding_index) 
         raise ValueError("Invalid padding value.")
