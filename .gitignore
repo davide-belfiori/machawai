@@ -52,7 +52,7 @@ coverage.xml
 .pytest_cache/
 
 # Custom test
-toTrash.py
+toTrash*
 
 # Translations
 *.mo
