@@ -6,7 +6,7 @@
 # --------------
 
 from machawai.ml.data import InformedTimeSeries, InformedTimeSeriesDataset
-from machawai.ml.transformer import Transformer, CutSeries
+from machawai.ml.transformer import Transformer, CutSeries, CutSeriesWithPadding
 import torch
 import numpy as np
 import random
@@ -246,6 +246,28 @@ class BatchCutSeries(BatchTransformer):
             max_size = self.max_size
         cut_size = random.randint(self.min_size, max_size)
         cut_series = CutSeries(cut_size=cut_size, inplace=True)
+        for i in range(its_batch.size):
+            cut_series.transform(its_batch.batch[i])
+        return its_batch
+    
+class BatchCutSeriesWithPadding(BatchTransformer):
+
+    def __init__(self, min_size: int, max_size: int = None, pad_value: float = 0.0, inplace: bool = False) -> None:
+        super().__init__()
+        self.inplace = inplace
+        self.pad_value = pad_value
+        self.min_size = min_size
+        self.max_size = max_size
+
+    def transform(self, its_batch: ITSBatch):
+        if not self.inplace:
+            its_batch = its_batch.copy()
+        if self.max_size == None:
+            max_size = np.min([its.series.shape[0] for its in its_batch.batch])
+        else:
+            max_size = self.max_size
+        cut_size = random.randint(self.min_size, max_size)
+        cut_series = CutSeriesWithPadding(cut_size=cut_size, pad_value=self.pad_value, inplace=True)
         for i in range(its_batch.size):
             cut_series.transform(its_batch.batch[i])
         return its_batch

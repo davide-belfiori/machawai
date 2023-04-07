@@ -4,6 +4,7 @@
 
 import random
 import pandas as pd
+import numpy as np
 from machawai.ml.data import InformedTimeSeries, NumericFeature, SeriesFeature
 
 # ---------------
@@ -152,5 +153,39 @@ class CutSeries(Transformer):
         else:
             cut_size = self.cut_size
         start_point = random.randint(0, series_length - cut_size)
+        its.series = its.series.loc[start_point: start_point + cut_size - 1]
+        return its
+
+class CutSeriesWithPadding(Transformer):
+
+    def __init__(self, cut_size: int = None, min_size: int = 1, max_size: int = 100, pad_value: float = 0.0, inplace: bool = False) -> None:
+        super().__init__()
+        self.cut_size = cut_size
+        self.min_size = min_size
+        self.max_size = max_size
+        self.pad_value = pad_value
+        self.inplace = inplace
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        series_length = its.series.shape[0]
+        if self.cut_size == None:
+            cut_size = random.randint(self.min_size, self.max_size)
+        else:
+            cut_size = self.cut_size
+        start_point = random.randint(1 - cut_size, series_length - 2)
+        if start_point < 0:
+            # Add padding before
+            padding = np.full(shape = (abs(start_point), its.series.shape[1]), fill_value=self.pad_value)
+            padding_index = np.arange(start_point, 0)
+            padding = pd.DataFrame(padding, columns=its.getColnames(), index=padding_index)
+            its.series = pd.concat([padding, its.series])
+        elif start_point > series_length - cut_size:
+            # Add padding after
+            padding = np.full(shape = (cut_size - (series_length - start_point), its.series.shape[1]), fill_value=self.pad_value)
+            padding_index = np.arange(series_length, start_point + cut_size)
+            padding = pd.DataFrame(padding, columns=its.getColnames(), index=padding_index)
+            its.series = pd.concat([its.series, padding])
         its.series = its.series.loc[start_point: start_point + cut_size - 1]
         return its
