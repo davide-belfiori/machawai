@@ -158,12 +158,13 @@ class CutSeries(Transformer):
 
 class CutSeriesWithPadding(Transformer):
 
-    def __init__(self, cut_size: int = None, min_size: int = 1, max_size: int = 100, pad_value: float = 0.0, inplace: bool = False) -> None:
+    def __init__(self, cut_size: int = None, min_size: int = 1, max_size: int = 100, pad_value: float = 0.0, max_padding: float = 1.0, inplace: bool = False) -> None:
         super().__init__()
         self.cut_size = cut_size
         self.min_size = min_size
         self.max_size = max_size
         self.pad_value = pad_value
+        self.max_padding = max(0, min(1, max_padding))
         self.inplace = inplace
 
     def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
@@ -174,7 +175,13 @@ class CutSeriesWithPadding(Transformer):
             cut_size = random.randint(self.min_size, self.max_size)
         else:
             cut_size = self.cut_size
-        start_point = random.randint(1 - cut_size, series_length - 2)
+
+        max_padding_size = int(cut_size * self.max_padding)
+        min_start_point = 1 if max_padding_size == 0 else 1 - max_padding_size
+        max_start_point = series_length - 2 if cut_size - max_padding_size < 2 else series_length - (cut_size - max_padding_size) 
+        start_point = random.randint(min_start_point , max_start_point)
+
+        #start_point = random.randint(1 - cut_size, series_length - 2)
         if start_point < 0:
             # Add padding before
             padding = np.full(shape = (abs(start_point), its.series.shape[1]), fill_value=self.pad_value)

@@ -252,10 +252,11 @@ class BatchCutSeries(BatchTransformer):
     
 class BatchCutSeriesWithPadding(BatchTransformer):
 
-    def __init__(self, min_size: int, max_size: int = None, pad_value: float = 0.0, inplace: bool = False) -> None:
+    def __init__(self, min_size: int, max_size: int = None, pad_value: float = 0.0, max_padding: float = 1.0, inplace: bool = False) -> None:
         super().__init__()
         self.inplace = inplace
         self.pad_value = pad_value
+        self.max_padding = max_padding
         self.min_size = min_size
         self.max_size = max_size
 
@@ -267,7 +268,7 @@ class BatchCutSeriesWithPadding(BatchTransformer):
         else:
             max_size = self.max_size
         cut_size = random.randint(self.min_size, max_size)
-        cut_series = CutSeriesWithPadding(cut_size=cut_size, pad_value=self.pad_value, inplace=True)
+        cut_series = CutSeriesWithPadding(cut_size=cut_size, pad_value=self.pad_value, max_padding=self.max_padding, inplace=True)
         for i in range(its_batch.size):
             cut_series.transform(its_batch.batch[i])
         return its_batch
