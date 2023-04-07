@@ -158,7 +158,7 @@ class CutSeries(Transformer):
 
 class CutSeriesWithPadding(Transformer):
 
-    def __init__(self, cut_size: int = None, min_size: int = 1, max_size: int = 100, pad_value: float = 0.0, max_padding: float = 1.0, inplace: bool = False) -> None:
+    def __init__(self, cut_size: int = None, min_size: int = 1, max_size: int = 100, pad_value: 'float | str' = 0.0, max_padding: float = 1.0, inplace: bool = False) -> None:
         super().__init__()
         self.cut_size = cut_size
         self.min_size = min_size
@@ -166,6 +166,34 @@ class CutSeriesWithPadding(Transformer):
         self.pad_value = pad_value
         self.max_padding = max(0, min(1, max_padding))
         self.inplace = inplace
+
+    def getPaddingBefore(self, start_point: int, its: InformedTimeSeries) -> pd.DataFrame:
+        if isinstance(self.pad_value, int) or isinstance(self.pad_value, float):
+            padding = np.full(shape = (abs(start_point), its.series.shape[1]), fill_value=self.pad_value)
+            padding_index = np.arange(start_point, 0)
+            return pd.DataFrame(padding, columns=its.getColnames(), index=padding_index)    
+        elif isinstance(self.pad_value, str):
+            if self.pad_value == "repeat":
+                padding = its.series.iloc[0].values
+                padding = np.expand_dims(padding, 0)
+                padding = np.repeat(padding, start_point, axis = 0)
+                padding_index = np.arange(start_point, 0)
+                return pd.DataFrame(padding, columns=its.getColnames(), index=padding_index) 
+        raise ValueError("Invalid padding value.")
+    
+    def getPaddingAfter(self, start_point: int, cut_size: int, series_length: int, its: InformedTimeSeries) -> pd.DataFrame:
+        if isinstance(self.pad_value, int) or isinstance(self.pad_value, float):
+            padding = np.full(shape = (cut_size - (series_length - start_point), its.series.shape[1]), fill_value=self.pad_value)
+            padding_index = np.arange(series_length, start_point + cut_size)
+            return pd.DataFrame(padding, columns=its.getColnames(), index=padding_index)    
+        elif isinstance(self.pad_value, str):
+            if self.pad_value == "repeat":
+                padding = its.series.iloc[-1].values
+                padding = np.expand_dims(padding, 0)
+                padding = np.repeat(padding, cut_size - (series_length - start_point), axis = 0)
+                padding_index = np.arange(series_length, start_point + cut_size)
+                return pd.DataFrame(padding, columns=its.getColnames(), index=padding_index) 
+        raise ValueError("Invalid padding value.")
 
     def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
         if not self.inplace:
@@ -184,15 +212,11 @@ class CutSeriesWithPadding(Transformer):
         #start_point = random.randint(1 - cut_size, series_length - 2)
         if start_point < 0:
             # Add padding before
-            padding = np.full(shape = (abs(start_point), its.series.shape[1]), fill_value=self.pad_value)
-            padding_index = np.arange(start_point, 0)
-            padding = pd.DataFrame(padding, columns=its.getColnames(), index=padding_index)
+            padding = self.getPaddingBefore(start_point=start_point, its=its)
             its.series = pd.concat([padding, its.series])
         elif start_point > series_length - cut_size:
             # Add padding after
-            padding = np.full(shape = (cut_size - (series_length - start_point), its.series.shape[1]), fill_value=self.pad_value)
-            padding_index = np.arange(series_length, start_point + cut_size)
-            padding = pd.DataFrame(padding, columns=its.getColnames(), index=padding_index)
+            padding = self.getPaddingAfter(start_point=start_point, cut_size=cut_size, series_length=series_length, its=its)
             its.series = pd.concat([its.series, padding])
         its.series = its.series.loc[start_point: start_point + cut_size - 1]
         return its

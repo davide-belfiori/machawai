@@ -252,7 +252,7 @@ class BatchCutSeries(BatchTransformer):
     
 class BatchCutSeriesWithPadding(BatchTransformer):
 
-    def __init__(self, min_size: int, max_size: int = None, pad_value: float = 0.0, max_padding: float = 1.0, inplace: bool = False) -> None:
+    def __init__(self, min_size: int, max_size: int = None, pad_value: 'float | str' = 0.0, max_padding: float = 1.0, inplace: bool = False) -> None:
         super().__init__()
         self.inplace = inplace
         self.pad_value = pad_value
