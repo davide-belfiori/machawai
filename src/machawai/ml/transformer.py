@@ -220,3 +220,28 @@ class CutSeriesWithPadding(Transformer):
             its.series = pd.concat([its.series, padding])
         its.series = its.series.loc[start_point: start_point + cut_size - 1]
         return its
+    
+class InterpolateSeries(Transformer):
+
+    def __init__(self, x_label: str, y_label: str, size: int) -> None:
+        super().__init__()
+        self.x_label = x_label
+        self.y_label = y_label
+        self.size = size
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        x = its.getColumn(self.x_label)
+        y = its.getColumn(self.y_label)
+        new_x = np.linspace(x.min(), x.max(), self.size)
+        new_y = np.interp(new_x, x, y)
+        new_series = pd.DataFrame({
+            self.x_label: new_x,
+            self.y_label: new_y
+        })
+        return InformedTimeSeries(series=new_series,
+                                  features=its.copyFeatures(),
+                                  data_train=its.data_train,
+                                  data_target=its.data_target,
+                                  features_target=its.features_train,
+                                  features_train=its.features_train,
+                                  name=its.name)
