@@ -218,16 +218,56 @@ class InformedTimeSeries():
             raise ValueError("Feature with name {} still exists.".format(feature.name))
         self.features.append(feature)
 
+    def hasTraining(self, name: str):
+        """
+        Check if a training feature with the give name exists.
+        """
+        return (self.hasFeature(name) and name in self.features_train) or \
+               (self.hasColumn(name) and name in self.data_train)
+
+    def getTraining(self, name: str):
+        """
+        Return the training feature or data column with the given name.
+        """
+        if self.hasTraining(name):
+            if name in self.data_train:
+                return self.series.loc[:,name]
+            else:
+                flist = list(filter(lambda f: f.name == name, self.features))
+                return flist[0]
+        raise ValueError("Unknown training feature or data column with name {}".format(name))
+
+    def untrain(self, name: str):
+        """
+        Set the feature/data column with the given name as a non-training feature/data column. 
+        """
+        if name in self.data_train:
+            self.data_train.remove(name)
+        elif name in self.features_train:
+            self.features_train.remove(name)
+
+    def setTraining(self, name: str):
+        """
+        Set the feature/data column with the given name as a training feature/data column.
+        """
+        if not self.hasTraining(name):
+            if self.hasColumn(name):
+                self.data_train.append(name)
+            elif self.hasFeature(name):
+                self.features_train.append(name)
+            else:
+                raise ValueError("Unknown feature or data column with name {}".format(name))
+
     def hasTarget(self, name:str):
         """
-        Check if a target feature with the give name exists.
+        Check if a target feature/data column with the give name exists.
         """
         return (self.hasFeature(name) and name in self.features_target) or \
                (self.hasColumn(name) and name in self.data_target)
 
     def getTarget(self, name:str):
         """
-        Return the target feature with the given name.
+        Return the target feature/data column with the given name.
         """
         if self.hasTarget(name):
             if name in self.data_target:
@@ -239,25 +279,24 @@ class InformedTimeSeries():
     
     def untarget(self, name:str):
         """
-        Untarget the feature with the given name. 
+        Untarget the feature/data column with the given name. 
         """
         if name in self.data_target:
-            self.data_target.pop(name)
+            self.data_target.remove(name)
         elif name in self.features_target:
-            self.features_target.pop(name)
+            self.features_target.remove(name)
 
     def setTarget(self, name: str):
         """
-        Set the feature with the given name as target
+        Set the feature/data column with the given name as target
         """
         if not self.hasTarget(name):
-            if name in self.getColnames(name):
+            if self.hasColumn(name):
                 self.data_target.append(name)
             elif self.hasFeature(name):
                 self.features_target.append(name)
             else:
                 raise ValueError("Unknown feature or data column with name {}".format(name))
-        raise ValueError("Unknown feature or data column with name {}".format(name))
     
     def copySeries(self) -> pd.DataFrame:
         return self.series.copy()
