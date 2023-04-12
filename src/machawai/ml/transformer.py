@@ -75,6 +75,17 @@ class MinMaxSeriesNormalizer(Transformer):
             its.series[col] = (its.series[col] - self.min(col)) / (self.max(col) - self.min(col))
         return its
     
+    def revert(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        if self.colnames == None:
+            cols = its.getColnames()
+        else:
+            cols = self.colnames
+        for col in cols:
+            its.series[col] = its.series[col] * (self.max(col) - self.min(col)) + self.min(col)
+        return its
+    
 # >>> RESIZE <<<
 
 class CutSeriesToMaxIndex(Transformer):
