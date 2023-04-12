@@ -620,15 +620,16 @@ def load_its_dataset(root: str, config: ITSDatasetConfig = None):
     subdir = os.walk(root)
     data = []
     for i, item in enumerate(subdir):
-        if i == 0 and config == None:
-            # Load datset configuration file.
-            _, _, files = item
-            if "config.json" in files:
-                print("Found config.json .")
-                config = ITSDatasetConfig.fromFile(file = os.path.join(root, "config.json"))
-            else:
-                config = ITSDatasetConfig.default()
-                print("config.json not found. Dafault configuration will be used.")
+        if i == 0:
+            if config == None:
+                # Load datset configuration file.
+                _, _, files = item
+                if "config.json" in files:
+                    print("Found config.json .")
+                    config = ITSDatasetConfig.fromFile(file = os.path.join(root, "config.json"))
+                else:
+                    config = ITSDatasetConfig.default()
+                    print("config.json not found. Dafault configuration will be used.")
         else:
             dir_path = item[0]
             data.append(read_its(dir_path, config))
