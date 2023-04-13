@@ -235,42 +235,59 @@ class CutSeriesWithPadding(Transformer):
             its.series = pd.concat([its.series, padding])
         its.series = its.series.loc[start_point: start_point + cut_size - 1]
         return its
-    
+
 class InterpolateSeries(Transformer):
 
-    def __init__(self, x_labels: 'list[str]', y_label: str, size: int) -> None:
+    def __init__(self, 
+                 x_label: str, 
+                 y_label: str,
+                 new_x_label: str = None, 
+                 size: int = None, 
+                 interp_x_name: str = "INTERP_X",
+                 interp_y_name: str = "INTERP_Y",
+                 inplace: bool = False) -> None:
         super().__init__()
-        self.x_labels = x_labels
+        self.x_label = x_label
         self.y_label = y_label
+        self.new_x_label = new_x_label
         self.size = size
+        self.inplace = inplace
+        self.interp_x_name = interp_x_name
+        self.interp_y_name = interp_y_name
 
     def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
-        x_label = self.x_labels[0]
-        x = its.getColumn(x_label)
+        if not self.inplace:
+            its = its.copy()
+        x = its.getColumn(self.x_label)
+        x = x.dropna(axis = 0)
         y = its.getColumn(self.y_label)
-        new_x = np.linspace(0, x.max(), self.size)
+        y = y.dropna(axis = 0)
+        if self.new_x_label != None:
+            new_x = its.getColumn(self.new_x_label)
+            new_x = new_x.dropna(axis=0)
+        else:
+            if self.size == None:
+                raise ValueError("Invalid size value.")
+            new_x = np.linspace(x.min(), x.max(), self.size)
         new_y = np.interp(new_x, x, y)
+        
+        series_length = its.series.shape[0]
+        if new_y.shape[0] < series_length:
+            d = series_length - new_y.shape[0]
+            new_y = np.concatenate([new_y, np.full(shape = (d,), fill_value = np.nan)])
+            new_x = np.concatenate([new_x, np.full(shape = (d,), fill_value = np.nan)])
+        elif new_y.shape[0] > series_length:
+            d = new_y.shape[0] - series_length
+            padding = np.full(shape = (d, its.series.shape[1]), fill_value = np.nan)
+            padding_index = np.arange(series_length, series_length + d)
+            padding = pd.DataFrame(padding, columns=its.getColnames(), index=padding_index)  
+            its.series = pd.concat([its.series, padding])
+        
+        its.series[self.interp_y_name] = new_y
+        if self.new_x_label == None:
+            its.series[self.interp_x_name] = new_x
 
-        new_series = pd.DataFrame({
-            x_label: new_x,
-            x_label + "_" + self.y_label: new_y
-        })
-
-        for x_label in self.x_labels[1:]:
-            x = its.getColumn(x_label)
-            new_x = np.linspace(0, x.max(), self.size)
-            new_y = np.interp(new_x, x, y)
-
-            new_series[x_label] = new_x
-            new_series[x_label + "_" + self.y_label] = new_y
-
-        return InformedTimeSeries(series=new_series,
-                                  features=its.copyFeatures(),
-                                  data_train=its.data_train,
-                                  data_target=its.data_target,
-                                  features_train=its.features_train,
-                                  features_target=its.features_target,
-                                  name=its.name)
+        return its
 
 # >>> GENERIC <<<
 
