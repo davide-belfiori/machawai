@@ -305,3 +305,18 @@ class RenameTraining(Transformer):
         its.untrain(self.old)
         its.setTraining(self.new)
         return its
+    
+class RenameTarget(Transformer):
+
+    def __init__(self, old: str, new: str, inplace: bool = False) -> None:
+        super().__init__()
+        self.old = old
+        self.new = new
+        self.inplace = inplace
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        its.untarget(self.old)
+        its.setTarget(self.new)
+        return its
