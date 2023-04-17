@@ -37,6 +37,13 @@ class ITSWrapper(InformedTimeSeries):
                           device=self.device,
                           dtype=self.dtype)
 
+    def feature_tensor(self, name: str, add_batch_dim: bool = False):
+        feature = self.getFeature(name = name).encode()
+        tensor = torch.tensor(feature, device=self.device, dtype=self.dtype)
+        if add_batch_dim:
+            tensor = tensor[None, ...]
+        return tensor
+
     def train_series_tensor(self, add_batch_dim: bool = False):
         train_series = self.getTrainSeries().values
         tensor = torch.tensor(train_series, device=self.device, dtype=self.dtype)
@@ -122,6 +129,12 @@ class ITSBatch():
 
     def copy(self) -> 'ITSBatch':
         return ITSBatch(batch=[b.copy() for b in self.batch])
+    
+    def feature_tensor(self, name: str):
+        tensor = self.batch[0].feature_tensor(name = name, add_batch_dim = True)
+        for i in range(1, self.size):
+            tensor = torch.cat([tensor, self.batch[i].feature_tensor(name = name, add_batch_dim = True)], dim=0)
+        return tensor
 
     def train_series_tensor(self):
         tensor = self.batch[0].train_series_tensor(add_batch_dim=True)
