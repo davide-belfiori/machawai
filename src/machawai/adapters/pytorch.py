@@ -372,7 +372,7 @@ def batch_train(model: torch.nn.Module,
                 valid_metric_buffer = []
                 for i, metric in enumerate(metrics):
                     metric_value = metric(Y=Y, Yp=Yp, X=X, batch=batch)
-                    valid_metric_buffer.append(metric)
+                    valid_metric_buffer.append(metric_value)
                 # Show progress
                 if verbose > 0:
                     postfix["VALID. LOSS"] = valid_loss.item()
