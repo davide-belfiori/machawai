@@ -10,7 +10,6 @@ from machawai.ml.transformer import Transformer, CutSeries, CutSeriesWithPadding
 import torch
 import numpy as np
 import random
-from typing import Callable
 from tqdm import tqdm
 
 # ---------------
@@ -205,6 +204,22 @@ class ITSBatchDataGenerator():
     def __len__(self):
         return self.size()
 
+class BatchLoss():
+
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, Y: torch.Tensor, Yp: torch.Tensor, X: torch.Tensor = None, batch: ITSBatch = None) -> torch.Tensor:
+        raise NotImplementedError()
+    
+class BatchMetric():
+
+    def __init__(self, name: str = None) -> None:
+        self.name = name
+
+    def __call__(self, Y: torch.Tensor, Yp: torch.Tensor, X: torch.Tensor = None, batch: ITSBatch = None) -> float:
+        raise NotImplementedError()
+
 # TODO: rivedere gesione Transformers
 
 class WrapTransformer(Transformer):
@@ -277,31 +292,23 @@ class BatchCutSeriesWithPadding(BatchTransformer):
 # --- FUNCTION ---
 # ----------------
 
-def train(model: torch.nn.Module, 
-          generator: ITSBatchDataGenerator, 
-          epochs: int, 
-          criterion = None,
-          optimizer: torch.optim.Optimizer = None,
-          lr_scheduler = None,
-          shuffle: bool = True,
-          verbose: int = 1,
-          metrics: 'list[Callable[[ITSBatch, torch.Tensor], float]]' = [],
-          metric_weigths: 'list[float]' = [],
-          metric_names: 'list[str]' = []):
+def batch_train(model: torch.nn.Module, 
+                generator: ITSBatchDataGenerator, 
+                epochs: int, 
+                batch_loss: BatchLoss,
+                optimizer: torch.optim.Optimizer = None,
+                lr_scheduler = None,
+                shuffle: bool = True,
+                verbose: int = 1,
+                metrics: 'list[BatchMetric]' = []):
     # INIT PHASE
     num_batches = generator.size()
-    # Handle metric names and weigths
-    if len(metrics) > 0:
-        if len(metric_weigths) == 0:
-            metric_weigths = [0] * len(metrics)
-        if len(metric_names) == 0:
-            metric_names = ["M"+i for i in range(len(metrics))]
     # Init. history dictionary
     history = {"loss": [],
                "valid_loss": []}
-    for i, name in enumerate(metric_names):
-        history[name] = []
-        history["valid_"+name] = []
+    for metric in metrics:
+        history[metric.name] = []
+        history["valid_"+metric.name] = []
     epochs = tqdm(range(epochs), desc="Progress") if verbose == 0 else range(epochs)
     model.train()
     # START TRAINING
@@ -321,15 +328,12 @@ def train(model: torch.nn.Module,
                 # Predict
                 Yp = model(X)
                 # Compute loss
-                loss = criterion(Y, Yp)
+                loss = batch_loss(Y=Y, Yp=Yp, X=X, batch=batch)
                 # Compute metrics
                 metric_buffer = []
-                for i, f in enumerate(metrics):
-                    metric = f(batch, Yp)
-                    weigth = metric_weigths[i]
-                    if weigth != 0:
-                        loss += metric * weigth
-                    metric_buffer.append(metric)
+                for i, metric in enumerate(metrics):
+                    metric_value = metric(Y=Y, Yp=Yp, X=X, batch=batch)
+                    metric_buffer.append(metric_value)
                 # Optimize
                 optimizer.zero_grad()
                 loss.backward()
@@ -340,8 +344,8 @@ def train(model: torch.nn.Module,
                 # Show progress
                 if verbose > 0:
                     postfix = {"LOSS": loss.item()}
-                    for i, name in enumerate(metric_names):
-                        postfix[name] = metric_buffer[i]
+                    for i, metric in enumerate(metrics):
+                        postfix[metric.name] = metric_buffer[i]
                     data_generator.set_postfix(postfix)
             else:
                 # Validation phase
@@ -350,37 +354,34 @@ def train(model: torch.nn.Module,
                 # Predict
                 Yp = model(X)
                 # Compute loss
-                valid_loss = criterion(Y, Yp)
+                valid_loss = batch_loss(Y=Y, Yp=Yp, X=X, batch=batch)
                 # Compute metrics
                 valid_metric_buffer = []
-                for i, f in enumerate(metrics):
-                    metric = f(batch, Yp)
-                    weigth = metric_weigths[i]
-                    if weigth != 0:
-                        valid_loss += metric * weigth
+                for i, metric in enumerate(metrics):
+                    metric_value = metric(Y=Y, Yp=Yp, X=X, batch=batch)
                     valid_metric_buffer.append(metric)
                 # Show progress
                 if verbose > 0:
                     postfix["VALID. LOSS"] = valid_loss.item()
-                    for i, name in enumerate(metric_names):
-                        postfix["VALID. " + name] = valid_metric_buffer[i] 
+                    for i, metric in enumerate(metrics):
+                        postfix["VALID. " + metric.name] = valid_metric_buffer[i] 
                     data_generator.set_postfix(postfix)
                 model.train()
         # END EPOCH
         # Update history
         history["loss"].append(loss.item())
         history["valid_loss"].append(valid_loss.item())
-        for i, name in enumerate(metric_names):
-            history[name].append(metric_buffer[i])
-            history["valid_"+name].append(valid_metric_buffer[i]) 
+        for metric in enumerate(metrics):
+            history[metric.name].append(metric_buffer[i])
+            history["valid_"+metric.name].append(valid_metric_buffer[i]) 
         # Show Progress
         if verbose == 0:
             postfix = {"LOSS": loss.item()}
-            for i, name in enumerate(metric_names):
-                postfix[name] = metric_buffer[i]
+            for i, metric in enumerate(metrics):
+                postfix[metric.name] = metric_buffer[i]
             postfix["VALID. LOSS"] = valid_loss.item()
-            for i, name in enumerate(metric_names):
-                postfix["VALID. " + name] = valid_metric_buffer[i]
+            for i, metric in enumerate(metrics):
+                postfix["VALID. " + metric.name] = valid_metric_buffer[i]
             epochs.set_postfix(postfix)
     # END TRAINING
     return history
