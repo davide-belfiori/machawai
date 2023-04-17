@@ -384,7 +384,7 @@ def batch_train(model: torch.nn.Module,
         # Update history
         history["loss"].append(loss.item())
         history["valid_loss"].append(valid_loss.item())
-        for metric in enumerate(metrics):
+        for i, metric in enumerate(metrics):
             history[metric.name].append(metric_buffer[i])
             history["valid_"+metric.name].append(valid_metric_buffer[i]) 
         # Show Progress
