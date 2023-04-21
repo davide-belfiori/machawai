@@ -38,6 +38,9 @@ class ITSWrapper(InformedTimeSeries):
                           dtype=self.dtype)
 
     def feature_tensor(self, name: str, add_batch_dim: bool = False):
+        """
+            Retrun the encoded feature as a tensor given its name.
+        """
         feature = self.getFeature(name = name).encode()
         tensor = torch.tensor(feature, device=self.device, dtype=self.dtype)
         if add_batch_dim:
@@ -45,6 +48,9 @@ class ITSWrapper(InformedTimeSeries):
         return tensor
 
     def train_series_tensor(self, add_batch_dim: bool = False):
+        """
+            Return the train series as a tensor.
+        """
         train_series = self.getTrainSeries().values
         tensor = torch.tensor(train_series, device=self.device, dtype=self.dtype)
         if add_batch_dim:
@@ -66,26 +72,6 @@ class ITSWrapper(InformedTimeSeries):
             features = torch.tensor([], device=self.device)
         return features
     
-    def target_tensor(self, add_batch_dim: bool = False):
-        target = []
-        # Append series tensor
-        s_tensor = self.getTargetSeries().values
-        s_tensor = s_tensor.squeeze()
-        s_tensor = torch.tensor(s_tensor, device=self.device, dtype=self.dtype)
-        if add_batch_dim:
-            s_tensor = s_tensor[None, ...]
-        target.append(s_tensor)
-        # Append feature tensors
-        for ft in self.getTargetFeatures():
-            f_tensor = ft.encode()
-            f_tensor = torch.tensor(f_tensor, device=self.device, dtype=self.dtype)
-            if add_batch_dim:
-                f_tensor = f_tensor[None, ...]
-            target.append(f_tensor)
-        if len(target) == 1:
-            return target[0]
-        return target
-    
     def target_series_tensor(self, add_batch_dim: bool = False):
         s_tensor = self.getTargetSeries().values
         s_tensor = torch.tensor(s_tensor, device=self.device, dtype=self.dtype)
@@ -94,30 +80,42 @@ class ITSWrapper(InformedTimeSeries):
         return s_tensor
     
     def target_features_tensor(self, add_batch_dim: bool = False):
-        target = []
-        for ft in self.getTargetFeatures():
-            f_tensor = ft.encode()
-            f_tensor = torch.tensor(f_tensor, device=self.device, dtype=self.dtype)
+        features = np.array([])
+        for i, feat in enumerate(self.its.getTargetFeatures()):
+            if i == 0:
+                features = feat.encode()
+            else:
+                features = np.hstack([features, feat.encode()])
+        if features.any():
+            features = torch.tensor(features, device=self.device, dtype=self.dtype)
             if add_batch_dim:
-                f_tensor = f_tensor[None, ...]
-            target.append(f_tensor)
-        return target
+                features = features[None, ...]
+        else:
+            features = torch.tensor([], device=self.device)
+        return features
 
     def X(self):
         train_series = self.train_series_tensor(add_batch_dim=self.add_batch_dim)
         train_features = self.train_features_tensor(add_batch_dim=self.add_batch_dim)
+        if train_series.any():
+            if train_features.any():
+                return train_series, train_features
+            return train_series
         if train_features.any():
-            return train_series, train_features
-        return train_series
+            return train_features
+        return torch.tensor([], device=self.device)
     
     def Y(self):
         target_series = self.target_series_tensor(self.add_batch_dim)
         target_features = self.target_features_tensor(self.add_batch_dim)
-        if len(target_features) > 0:
-            target_features.insert(0, target_series)
+        if target_series.any():
+            if target_features.any():
+                return target_series, target_features
+            return target_series
+        if target_features.any():
             return target_features
-        return target_series
-
+        return torch.tensor([], device=self.device)
+    
     def __iter__(self):
         return iter((self.X(), self.Y()))
 
@@ -138,46 +136,57 @@ class ITSBatch():
 
     def train_series_tensor(self):
         tensor = self.batch[0].train_series_tensor(add_batch_dim=True)
+        if not tensor.any():
+            return torch.tensor([], device = tensor.device)
         for i in range(1, self.size):
             tensor = torch.cat([tensor, self.batch[i].train_series_tensor(True)], dim=0)
         return tensor
     
     def train_features_tensor(self):
         tensor = self.batch[0].train_features_tensor(add_batch_dim=True)
+        if not tensor.any():
+            return torch.tensor([], device = tensor.device)
         for i in range(1, self.size):
             tensor = torch.cat([tensor, self.batch[i].train_features_tensor(True)], dim=0)
         return tensor
     
     def target_series_tensor(self):
         tensor = self.batch[0].target_series_tensor(add_batch_dim=True)
+        if not tensor.any():
+            return torch.tensor([], device = tensor.device)
         for i in range(1, self.size):
             tensor = torch.cat([tensor, self.batch[i].target_series_tensor(True)], dim=0)
         return tensor
     
     def target_features_tensor(self):
-        toReturn = self.batch[0].target_features_tensor(add_batch_dim=True)
-        if len(toReturn) == 0:
-            return []
+        tensor = self.batch[0].target_features_tensor(add_batch_dim=True)
+        if not tensor.any():
+            return torch.tensor([], device = tensor.device)
         for i in range(1, self.size):
-            tf_list = self.batch[i].target_features_tensor(add_batch_dim=True)
-            for i, tf in enumerate(tf_list):
-                toReturn[i] = torch.cat([toReturn[i], tf], dim=0)
-        return toReturn
+            tensor = torch.cat([tensor, self.batch[i].target_features_tensor(True)], dim=0)
+        return tensor
 
     def X(self):
         train_series = self.train_series_tensor()
         train_features = self.train_features_tensor()
+        if train_series.any():
+            if train_features.any():
+                return train_series, train_features
+            return train_series
         if train_features.any():
-            return train_series, train_features
-        return train_series
+            return train_features
+        return torch.tensor([], device=train_series.device)
     
     def Y(self):
         target_series = self.target_series_tensor()
         target_features = self.target_features_tensor()
-        if len(target_features) > 0:
-            target_features.insert(0, target_series)
+        if target_series.any():
+            if target_features.any():
+                return target_series, target_features
+            return target_series
+        if target_features.any():
             return target_features
-        return target_series
+        return torch.tensor([], device=target_series.device)
 
     def __iter__(self):
         return iter((self.X(), self.Y()))
