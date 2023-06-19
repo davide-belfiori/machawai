@@ -8,7 +8,7 @@ import pandas as pd
 from openpyxl import load_workbook
 import glob
 from machawai.labels import *
-from machawai.const import *
+from machawai.const import Const
 
 # ------------------
 # --- EXCEPTIONS ---
@@ -232,9 +232,9 @@ class TestSetup(LabelledObject):
     """
     def __init__(self,
                  extensometer_acquired: bool = True,
-                 ref_displacement_load: str = MOTOR,
-                 ref_param_strain: str = EXTENSO,
-                 linearity_dev_method: str = RP02,
+                 ref_displacement_load: str = Const.MOTOR,
+                 ref_param_strain: str = Const.EXTENSO,
+                 linearity_dev_method: str = Const.RP02,
                  straingage1_acquired: bool = False,
                  straingage2_acquired: bool = False) -> None:
         """
@@ -262,11 +262,11 @@ class TestSetup(LabelledObject):
             TBD
         
         """
-        if not ref_displacement_load in ACCEPTED_REF_DISPLACEMENT_LOAD:
+        if not ref_displacement_load in Const.ACCEPTED_REF_DISPLACEMENT_LOAD:
             raise ValueError("Invalid ref_displacement_load.")
-        if not ref_param_strain in ACCEPTED_REF_PARAM_STRAIN:
+        if not ref_param_strain in Const.ACCEPTED_REF_PARAM_STRAIN:
             raise ValueError("Invalid ref_param_strain.")
-        if not linearity_dev_method in LINEARITY_DEV_METHODS:
+        if not linearity_dev_method in Const.LINEARITY_DEV_METHODS:
             raise ValueError("Invalid linearity_dev_method.")
         
         self.extensometer_acquired = extensometer_acquired
@@ -319,11 +319,11 @@ class CutAndOffset(LabelledObject):
 
     def apply(self, curve: pd.DataFrame, col_idx: int = 0):
         curve_length = curve.shape[0]
-        to_tail = curve_length * self.tail_p
-        curve = curve.iloc[:curve_length - to_tail]
+        to_tail = int(curve_length * self.tail_p)
+        curve = curve.iloc[:curve_length - to_tail].copy()
 
         curve.iloc[:,col_idx] = curve.iloc[:,col_idx] - self.foot_offset
-        curve = curve.loc[curve.iloc[:,col_idx] < 0]
+        curve = curve.loc[curve.iloc[:,col_idx] >= 0]
         return curve
     
     def getCutAndOffset(self):
@@ -585,18 +585,22 @@ def readTensileTest(file: str) -> TensileTest:
     # Get the sheet names
     sheet_names = wb.sheetnames
     # Check that RAW end ELAB sheets exist
-    assert RAW in sheet_names and ELAB in sheet_names
+    assert Const.RAW in sheet_names and Const.ELAB in sheet_names
     # 1) Read the Test data
-    df = pd.read_excel(file, sheet_name=RAW, header=[0,1], dtype=float)
-    testData = TestData(disp = df[DISP_COL].iloc[:,0],
-                        load = df[LOAD_COL].iloc[:,0],
-                        exts = df[EXTS_COL].iloc[:,0] if EXTS_COL in df.columns else None,
-                        time = df[TIME_COL].iloc[:,0] if TIME_COL in df.columns else None)
+    df = pd.read_excel(file, sheet_name=Const.RAW, header=[0,1])
+    # Replace white spaces with NaN
+    df = df.replace(" ", "NaN")
+    # Convert to float
+    df = df.astype(float)
+    testData = TestData(disp = df[Const.DISP_COL].iloc[:,0],
+                        load = df[Const.LOAD_COL].iloc[:,0],
+                        exts = df[Const.EXTS_COL].iloc[:,0] if Const.EXTS_COL in df.columns else None,
+                        time = df[Const.TIME_COL].iloc[:,0] if Const.TIME_COL in df.columns else None)
     
     # Read Specimen Properties and options
-    prop_sheet = wb[ELAB]
+    prop_sheet = wb[Const.ELAB]
     # Read properties table
-    table = prop_sheet[SPROP_START: SPROP_END]
+    table = prop_sheet[Const.SPROP_START: Const.SPROP_END]
 
     # 2) Specimen Properties
     width = table[0]
@@ -614,19 +618,19 @@ def readTensileTest(file: str) -> TensileTest:
                                exts_length=exts_length)
     
     # 3) Test Setup
-    table = prop_sheet[SETUP_START: SETUP_END]
+    table = prop_sheet[Const.SETUP_START: Const.SETUP_END]
     ext_acquired = string2bool(table[0][0].value)
     s1_acquired = string2bool(table[1][0].value)
     s2_acquired = string2bool(table[2][0].value)
     rdl = table[3][0].value
-    if not (rdl in ACCEPTED_REF_DISPLACEMENT_LOAD):
-        raise ValueError("Unknown Ref. Displacement Load. Given value: {}. Accepted: {}".format(rdl, ACCEPTED_REF_DISPLACEMENT_LOAD))
+    if not (rdl in Const.ACCEPTED_REF_DISPLACEMENT_LOAD):
+        raise ValueError("Unknown Ref. Displacement Load. Given value: {}. Accepted: {}".format(rdl, Const.ACCEPTED_REF_DISPLACEMENT_LOAD))
     rps = table[4][0].value
-    if not (rps in ACCEPTED_REF_PARAM_STRAIN):
-        raise ValueError("Unknown Ref. Parameter for Strain Calculation. Given value: {}. Accepted: {}".format(rps, ACCEPTED_REF_PARAM_STRAIN))
+    if not (rps in Const.ACCEPTED_REF_PARAM_STRAIN):
+        raise ValueError("Unknown Ref. Parameter for Strain Calculation. Given value: {}. Accepted: {}".format(rps, Const.ACCEPTED_REF_PARAM_STRAIN))
     ldm = table[5][0].value
-    if not (ldm in LINEARITY_DEV_METHODS):
-        raise ValueError("Unknow Linearity Deviation Method. Given: {}. Accepted: {}".format(ldm, LINEARITY_DEV_METHODS))
+    if not (ldm in Const.LINEARITY_DEV_METHODS):
+        raise ValueError("Unknow Linearity Deviation Method. Given: {}. Accepted: {}".format(ldm, Const.LINEARITY_DEV_METHODS))
     setup = TestSetup(extensometer_acquired = ext_acquired,
                       ref_displacement_load = rdl,
                       ref_param_strain = rps,
@@ -635,13 +639,13 @@ def readTensileTest(file: str) -> TensileTest:
                       straingage2_acquired = s2_acquired)
     
     # 4) Cut and Offset
-    tp = prop_sheet[TAIL_P_CELL].value / 100
-    foot_offset = prop_sheet[FOOT_OFFSET_CELL].value / 100
+    tp = prop_sheet[Const.TAIL_P_CELL].value / 100
+    foot_offset = prop_sheet[Const.FOOT_OFFSET_CELL].value / 100
     cao = CutAndOffset(tail_p=tp, foot_offset=foot_offset)
 
     # 5) Linear Section
-    bc = prop_sheet[BOTTOM_CUTOUT_CELL].value
-    uc = prop_sheet[UPPER_CUTOUT_CELL].value
+    bc = prop_sheet[Const.BOTTOM_CUTOUT_CELL].value
+    uc = prop_sheet[Const.UPPER_CUTOUT_CELL].value
     linsec = LinearSection(bottom_cutout=bc, upper_cutout=uc)
 
     filename = os.path.basename(file)
