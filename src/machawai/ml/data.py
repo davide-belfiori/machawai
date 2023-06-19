@@ -460,7 +460,7 @@ class ITSDatasetConfig():
                     "target": self.data_target
                 },
                 "features": {
-                    "filename": self.features_file_name,
+                    "file_name": self.features_file_name,
                     "train": self.features_train,
                     "target": self.features_target,
                     "options": self.features_options
@@ -482,6 +482,12 @@ class InformedTimeSeriesDataset():
         self.data = data
         self.config = config
         self.transformers = transformers
+
+    def merge(self, its_dataset: 'InformedTimeSeriesDataset'):
+        """
+        Adds all data of an `InformedTimeSeriesDataset` to this dataset.
+        """
+        self.data.extend(its_dataset.data)
 
     def size(self) -> int:
         return len(self.data)
