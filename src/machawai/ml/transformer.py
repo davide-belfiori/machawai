@@ -103,12 +103,12 @@ class CutSeriesToMaxIndex(Transformer):
         if not self.inplace:
             its = its.copy()
         idx_max = its.series[self.colname].argmax()
-        its.series = its.series[:idx_max]
+        its.series = its.series[:idx_max + 1]
         for fname in self.include_features:
             feat = its.getFeature(fname)
             if not isinstance(feat, SeriesFeature):
                 raise ValueError("CutSeriesToMax: only SeriesFeature can be transformed.")
-            feat.value = feat.value[:idx_max]
+            feat.value = feat.value[:idx_max + 1]
         return its
 
 class CutSeriesTail(Transformer):
