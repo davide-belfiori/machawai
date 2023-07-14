@@ -111,6 +111,44 @@ class CutSeriesToMaxIndex(Transformer):
             feat.value = feat.value[:idx_max + 1]
         return its
 
+class CutSeriesToFeaturePoint(Transformer):
+
+    def __init__(self, 
+                 use_feature: str,
+                 include_cut_point: bool = True,
+                 include_features: 'list[str]' = [], 
+                 inplace: bool = False) -> None:
+        super().__init__()
+        self.use_feature = use_feature
+        self.include_cut_point = include_cut_point
+        self.include_features = include_features
+        self.inplace = inplace
+
+    def getCutPoint(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        feat = its.getFeature(self.use_feature)
+        if isinstance(feat, NumericFeature):
+            return feat.value
+        raise TypeError("CutSeriesTail: only NumericFeature can be used to cut the series.")
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        cut_point = self.getCutPoint(its=its)
+        if self.include_cut_point:
+            its.series = its.series.iloc[:cut_point + 1]
+        else:
+            its.series = its.series.iloc[:cut_point]
+
+        for fname in self.include_features:
+            feat = its.getFeature(fname)
+            if not isinstance(feat, SeriesFeature):
+                raise ValueError("CutSeriesTail: only SeriesFeature can be transformed.")
+            if self.include_cut_point:
+                feat.value = feat.value.iloc[:cut_point + 1]
+            else:
+                feat.value = feat.value.iloc[:cut_point]
+        return its
+
 class CutSeriesTail(Transformer):
 
     def __init__(self, 
