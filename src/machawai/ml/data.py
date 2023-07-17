@@ -402,9 +402,11 @@ class ITSDatasetConfig():
                 return self.features_options[name]["one_hot"]
         return False
 
+    @classmethod
     def default():
         return ITSDatasetConfig()
     
+    @classmethod
     def fromDictionary(config: dict):
         """
         Load configuration from dictionary.
@@ -438,6 +440,7 @@ class ITSDatasetConfig():
                 itsd_config.features_options = features_config["options"]           
         return itsd_config
 
+    @classmethod
     def fromFile(file: str):
         """
         Load configuration from json.
