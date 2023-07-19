@@ -9,40 +9,12 @@ from openpyxl import load_workbook
 import glob
 from machawai.labels import *
 from machawai.const import Const
-
-# ------------------
-# --- EXCEPTIONS ---
-# ------------------
-
-class MissingTimeError(Exception):
-
-    def __init__(self, message="No Time values provided") -> None:
-        self.message = message
-        super().__init__(self.message)
-
-class MissingExtsError(Exception):
-
-    def __init__(self, message="No Extensometer values provided") -> None:
-        self.message = message
-        super().__init__(self.message)
+from machawai.globals import LabelledObject, MissingExtsError
+from machawai.utils import string2bool
 
 # ---------------
 # --- CLASSES ---
 # ---------------
-
-class LabelledObject():
-
-    def __init__(self) -> None:
-        pass
-
-    def labels(self) -> 'list[str]':
-        raise NotImplementedError()
-    
-    def get_by_label(self, label:str):
-        raise NotImplementedError()
-    
-    def get_by_labels(self, labels:'list[str]'):
-        raise NotImplementedError()
 
 class TestData(LabelledObject):
     """
@@ -443,7 +415,7 @@ class TensileTest(LabelledObject):
         """
         Compute the Strain values on Displacement.
         """
-        return self.testData.disp / self.specimenProperties.exts_length
+        return self.testData.disp / self.specimenProperties.interaxis
     
     def getExtsStrain(self):
         """
@@ -571,11 +543,6 @@ class TensileTest(LabelledObject):
 # --- FUNCTIONS ---
 # -----------------
 
-def string2bool(string: 'str | int') -> bool:
-    if isinstance(string, int):
-        return string == 1
-    return string.lower() in ["true", "t", "1", "yes", "y", "s"]
-
 def readTensileTest(file: str) -> TensileTest:
     """
     Read a Tensile Test from file.
@@ -606,8 +573,8 @@ def readTensileTest(file: str) -> TensileTest:
     width = table[0]
     thickness = table[1]
     interaxis = table[2][0].value
-    constant_section_length = table[3][0].value
-    exts_length = table[4][0].value
+    exts_length = table[3][0].value
+    constant_section_length = table[4][0].value
     # Width and Thickness needs to be converted from tuple to list
     width = list(map(lambda c: c.value, width))
     thickness = list(map(lambda c: c.value, thickness))

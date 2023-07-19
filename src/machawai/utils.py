@@ -2,7 +2,15 @@
 Utility classes and functions.
 """
 
+# --------------
+# --- IMPORT ---
+# --------------
+
 import pandas as pd
+
+# ---------------
+# --- CLASSES ---
+# ---------------
 
 class DFStats():
     """
@@ -47,3 +55,12 @@ class DFStats():
         return pd.DataFrame({"min": self.getMin(),
                             "max": self.getMax(),
                             "mean": self.getMean()}).transpose()
+    
+# -----------------
+# --- FUNCTIONS ---
+# -----------------
+
+def string2bool(string: 'str | int') -> bool:
+    if isinstance(string, int):
+        return string == 1
+    return string.lower() in ["TRUE", "true", "True", "t", "1", "yes", "y", "s"]
