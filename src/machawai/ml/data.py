@@ -403,11 +403,11 @@ class ITSDatasetConfig():
         return False
 
     @classmethod
-    def default():
+    def default(cls):
         return ITSDatasetConfig()
     
     @classmethod
-    def fromDictionary(config: dict):
+    def fromDictionary(cls, config: dict):
         """
         Load configuration from dictionary.
         """
@@ -441,7 +441,7 @@ class ITSDatasetConfig():
         return itsd_config
 
     @classmethod
-    def fromFile(file: str):
+    def fromFile(cls, file: str):
         """
         Load configuration from json.
         """
