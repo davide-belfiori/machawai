@@ -6,7 +6,7 @@
 # --------------
 
 from machawai.ml.data import InformedTimeSeries, InformedTimeSeriesDataset
-from machawai.ml.transformer import Transformer, CutSeries, CutSeriesWithPadding
+from machawai.ml.transformer import Transformer, CutSeries, CutSeriesWithPadding, BSplineInterpolate
 import torch
 import numpy as np
 import random
@@ -308,6 +308,37 @@ class BatchCutSeriesWithPadding(BatchTransformer):
         cut_series = CutSeriesWithPadding(cut_size=cut_size, pad_value=self.pad_value, max_padding=self.max_padding, inplace=True)
         for i in range(its_batch.size):
             cut_series.transform(its_batch.batch[i])
+        return its_batch
+
+class BatchBSplineInterpolate(BatchTransformer):
+
+    def __init__(self,
+                 s: float = 0,
+                 k: int = 1,
+                 size: int = None,
+                 save_old_size_as: str = None,
+                 inplace: bool = False) -> None:
+        super().__init__()
+        self.size = size
+        self.s = s
+        self.k = k
+        self.save_old_size_as = save_old_size_as
+        self.inplace = inplace
+
+    def transform(self, its_batch: ITSBatch):
+        if not self.inplace:
+            its_batch = its_batch.copy()
+        if self.size == None:
+            size = max(map(lambda its: its.series.shape[0], its_batch.batch))
+        else:
+            size = self.size
+        bs_interp = BSplineInterpolate(size = size,
+                                       s = self.s,
+                                       k = self.k,
+                                       save_old_size_as = self.save_old_size_as,
+                                       inplace = True)
+        for i in range(its_batch.size):
+            bs_interp.transform(its_batch.batch[i])
         return its_batch
 
 # ----------------

@@ -5,6 +5,7 @@
 import random
 import pandas as pd
 import numpy as np
+from scipy import interpolate
 from machawai.ml.data import InformedTimeSeries, NumericFeature, SeriesFeature
 
 # ---------------
@@ -324,6 +325,38 @@ class InterpolateSeries(Transformer):
         its.series[self.interp_y_name] = new_y
         if self.new_x_label == None:
             its.series[self.interp_x_name] = new_x
+
+        return its
+
+class BSplineInterpolate(Transformer):
+
+    def __init__(self,
+                 size: int,
+                 s: float = 0.0,
+                 k: int = 1,
+                 save_old_size_as: str = None,
+                 inplace: bool = False) -> None:
+        super().__init__()
+        self.size = size
+        self.s = s
+        self.k = k
+        self.save_old_size_as = save_old_size_as
+        self.inplace = inplace
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        if self.save_old_size_as != None and \
+           self.save_old_size_as != "" and \
+           not its.hasFeature(self.save_old_size_as):
+            its.addFeature(NumericFeature(name = self.save_old_size_as, value=its.series.shape[0]))
+        curve = its.series.values
+        tck, u = interpolate.splprep(curve.T, s = self.s, k = self.k)
+        u_new = np.linspace(u.min(), u.max(), self.size)
+        interp_curve = interpolate.splev(u_new, tck, der=0)
+        new_series = pd.DataFrame(interp_curve).transpose()
+        new_series.columns = its.series.columns
+        its.series = new_series
 
         return its
 
