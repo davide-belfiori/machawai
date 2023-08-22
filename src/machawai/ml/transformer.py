@@ -51,6 +51,22 @@ class MinMaxFetaureNormalizer(Transformer):
                 feat.value = (feat.value - self.min(fname)) / (self.max(fname) - self.min(fname))
         return its
     
+    def revert(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        for fname in self.features:
+            feat = its.getFeature(fname)
+            if feat.isCategorical():
+                fval = feat.encode()
+                fval = fval * (self.max(fname) - self.min(fname)) + self.min(fname) 
+                nfeat = NumericFeature(name=fname, value=fval)
+                its.dropFeature(fname)
+                its.addFeature(nfeat)
+            else:
+                feat.value = feat.value * (self.max(fname) - self.min(fname)) + self.min(fname)
+        return its
+        
+
 class MinMaxSeriesNormalizer(Transformer):
 
     def __init__(self, df: pd.DataFrame, inplace: bool = False, colnames: 'list[str]' = None) -> None:
