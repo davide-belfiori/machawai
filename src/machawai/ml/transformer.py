@@ -6,7 +6,7 @@ import random
 import pandas as pd
 import numpy as np
 from scipy import interpolate
-from machawai.ml.data import InformedTimeSeries, NumericFeature, SeriesFeature
+from machawai.ml.data import InformedTimeSeries, NumericFeature, SeriesFeature, VectorFeature
 
 # ---------------
 # --- CLASSES ---
