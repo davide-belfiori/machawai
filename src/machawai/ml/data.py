@@ -208,7 +208,7 @@ class InformedTimeSeries():
         """
         Drop the feature with the given name. 
         """
-        self.features.pop(self.getFeature(name=name))
+        self.features.remove(self.getFeature(name=name))
 
     def addFeature(self, feature: Feature):
         """
