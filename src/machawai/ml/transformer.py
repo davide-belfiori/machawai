@@ -41,10 +41,13 @@ class MinMaxFetaureNormalizer(Transformer):
             its = its.copy()
         for fname in self.features:
             feat = its.getFeature(fname)
-            if feat.isCategorical():
+            if feat.isCategorical() or isinstance(feat, VectorFeature):
                 fval = feat.encode()
                 fval = (fval - self.min(fname)) / (self.max(fname) - self.min(fname))
-                nfeat = NumericFeature(name=fname, value=fval)
+                if isinstance(feat, VectorFeature):
+                    nfeat = VectorFeature(name=fname, value=fval.tolist())
+                else:
+                    nfeat = NumericFeature(name=fname, value=fval)
                 its.dropFeature(fname)
                 its.addFeature(nfeat)
             else:
