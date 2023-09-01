@@ -384,6 +384,18 @@ class BSplineInterpolate(Transformer):
 
 # >>> GENERIC <<<
 
+class ReverseSeries(Transformer):
+
+    def __init__(self, inplace: bool = False) -> None:
+        super().__init__()
+        self.inplace = inplace
+
+    def transform(self, its: InformedTimeSeries) -> InformedTimeSeries:
+        if not self.inplace:
+            its = its.copy()
+        its.series = its.series.iloc[::-1]
+        return its
+
 class RenameTraining(Transformer):
 
     def __init__(self, old: str, new: str, inplace: bool = False) -> None:
